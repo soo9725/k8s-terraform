@@ -1,0 +1,19 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+*.tfvars
+
+# SSH Keys & Secrets
+*.pem
+bastion_key
+bastion_key.pub
+
+# IDE & System (여기가 핵심)
+.vscode/
+.vscode-server/
+snap/
+
+# OS
+.DS_Store
