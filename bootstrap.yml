@@ -1,0 +1,19 @@
+# bootstrap.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: python-demo-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/soo9725/k8s-terraform.git 
+    targetRevision: main
+    path: 05-app  # 사용자님의 실제 폴더명
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
