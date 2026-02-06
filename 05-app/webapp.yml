@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: python-app
+  template:
+    metadata:
+      labels:
+        app: python-app
+    spec:
+      containers:
+      - name: python-web
+        image: python:3.9-slim
+        command: ["/bin/sh", "-c"]
+        args:
+          - echo "Hello from ArgoCD!" > index.html;
+            python3 -m http.server 8000;
+        ports:
+        - containerPort: 8000
+        # [추가됨] 자원 사용량 제한 (Best Practice)
+        resources:
+          requests:
+            memory: "64Mi"  # 최소 이만큼은 보장해줘
+            cpu: "250m"     # CPU 0.25개는 보장해줘
+          limits:
+            memory: "128Mi" # 최대 이만큼까지만 써 (넘으면 죽임)
+            cpu: "500m"     # 최대 CPU 0.5개까지만 써 (넘으면 느려짐)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-service
+  namespace: default
+spec:
+  selector:
+    app: python-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: NodePort
