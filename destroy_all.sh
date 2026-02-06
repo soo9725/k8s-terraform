@@ -19,9 +19,6 @@ echo "--------------------------------------"
 echo "🗑️ Destroying Layer 2 (Cluster)..."
 cd 02-cluster && terraform destroy -auto-approve && cd ..
 
-#!/bin/bash
-
-# ... (Layer 4, 3, 2 삭제 부분은 기존과 동일) ...
 
 # 4. Layer 1: Network (비용 절감 모드로 전환)
 echo "--------------------------------------"
