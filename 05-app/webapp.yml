@@ -16,6 +16,10 @@ spec:
       containers:
       - name: python-web
         image: python:3.9-slim
+        # [핵심] 컨테이너가 죽지 않고 웹 서버 역할을 하도록 명령 추가
+        command: ["/bin/sh", "-c"]
+        args:
+          - echo "Hello from Init Container" > index.html && python3 -m http.server 8000
         ports:
         - containerPort: 8000
         resources:
@@ -38,5 +42,5 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8000
-  # NodePort도 좋지만, Ingress(ALB)를 쓴다면 ClusterIP가 더 깔끔합니다. (선택사항)
+  # ALB Ingress와 연결하기 위해 NodePort 사용 (ClusterIP도 가능하나 기존 유지)
   type: NodePort
