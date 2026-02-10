@@ -11,7 +11,6 @@ echo "🚀 [Start] 인프라 생성 및 비용 절감 해제를 시작합니다.
 echo "--------------------------------------"
 echo "🔌 Applying Layer 1 (Turning ON NAT & Bastion)..."
 cd 01-network 
-# [핵심] 변수를 true로 설정하여 NAT와 Bastion을 생성
 terraform apply -var 'enable_nat_bastion=true' -auto-approve
 cd ..
 
@@ -21,8 +20,43 @@ cd ..
 echo "--------------------------------------"
 echo "🏗️ Applying Layer 2 (Cluster)..."
 cd 02-cluster 
-terraform apply -auto-approve
-# [필수] EKS가 새로 생성되었으므로 kubeconfig 업데이트
+
+# [FIX] 실패했을 경우(! 연산자)에만 OIDC 복구 로직 실행
+if ! terraform apply -auto-approve; then
+  echo "⚠️ Terraform apply failed. Checking for OIDC Provider issues..."
+  
+  # kubeconfig 업데이트
+  aws eks update-kubeconfig --region ap-northeast-1 --name terraform-k8s-cluster --alias k8s-demo 2>/dev/null
+
+  # OIDC Issuer URL 확인
+  ISSUER_URL=$(aws eks describe-cluster --name terraform-k8s-cluster --query "cluster.identity.oidc.issuer" --output text 2>/dev/null)
+  
+  if [ -n "$ISSUER_URL" ]; then
+    OIDC_ID=$(echo $ISSUER_URL | awk -F/ '{print $NF}')
+    echo "🔎 Detected OIDC ID: $OIDC_ID"
+    
+    # IAM에서 해당 ID 검색
+    EXISTING_ARN=$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?contains(Arn, '$OIDC_ID')].Arn" --output text)
+    
+    if [ -n "$EXISTING_ARN" ]; then
+      echo "🧟 Zombie OIDC Provider found: $EXISTING_ARN"
+      echo "🚑 Attempting auto-import..."
+      
+      terraform import aws_iam_openid_connect_provider.eks "$EXISTING_ARN"
+      
+      echo "🔄 Retrying Terraform Apply..."
+      terraform apply -auto-approve
+    else
+      echo "❌ OIDC issue detected but no existing provider found. Please check logs manually."
+      exit 1
+    fi
+  else
+    echo "❌ Failed to retrieve Cluster OIDC URL. Aborting."
+    exit 1
+  fi
+fi
+
+# 성공 시 kubeconfig 업데이트
 aws eks update-kubeconfig --region ap-northeast-1 --name terraform-k8s-cluster --alias k8s-demo
 cd ..
 
@@ -44,14 +78,16 @@ cd 04-ingress
 terraform apply -auto-approve
 cd ..
 
+# [FIX] ALB Controller가 Ingress를 인식할 수 있도록 잠시 대기
+echo "⏳ Waiting for ALB Controller to initialize (15s)..."
+sleep 15
+
 # --------------------------------------
 # 5. ArgoCD Bootstrap (앱 배포 자동화)
 # --------------------------------------
 echo "--------------------------------------"
 echo "🤖 Bootstrapping ArgoCD Apps..."
 
-# Bootstrap 실행 (GitOps 트리거)
-# bootstrap.yaml 파일은 apply_all.sh와 같은 위치(terraform-k8s 폴더)에 있어야 함
 if [ -f "bootstrap.yml" ]; then
     kubectl apply -f bootstrap.yml
     echo "✅ Bootstrap applied successfully."
@@ -60,7 +96,7 @@ else
 fi
 
 # --------------------------------------
-# 6. WebApp Ingress (ALB 생성 - 오늘 추가된 작업)
+# 6. WebApp Ingress (ALB 생성)
 # --------------------------------------
 echo "--------------------------------------"
 echo "🌍 Exposing WebApp via ALB..."
@@ -72,13 +108,12 @@ else
 fi
 
 # --------------------------------------
-# 7. ArgoCD 정보 출력 (비밀번호 확인용)
+# 7. ArgoCD 정보 출력
 # --------------------------------------
 echo "--------------------------------------"
 echo "🔐 ArgoCD Admin Password:"
-# 초기 비밀번호 디코딩하여 출력
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-echo "" # 줄바꿈
+echo "" 
 
 echo "--------------------------------------"
 echo "✅ [Complete] 모든 인프라가 성공적으로 배포되었습니다!"
