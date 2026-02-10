@@ -10,24 +10,20 @@ resource "kubernetes_namespace" "harbor" {
 }
 
 # -------------------------------------------------------------
-# 2. [핵심 변경] Default ServiceAccount에 신분증(IAM) 강제 부착
+# 2. Default ServiceAccount에 신분증(IAM) 강제 부착
 # -------------------------------------------------------------
-# Harbor가 자꾸 default를 쓰니까, 아예 default에 권한을 줘버립니다.
 resource "kubernetes_default_service_account" "harbor_default" {
   metadata {
     namespace = kubernetes_namespace.harbor.metadata[0].name
-    # "default"라는 이름은 생략 가능(기본값)하지만 명시적으로 지정
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.harbor.arn
     }
   }
-  
-  # 기존 default SA를 덮어쓰기 위해 설정
   automount_service_account_token = true
 }
 
 # -------------------------------------------------------------
-# 3. Harbor 설치 (Default SA 사용)
+# 3. Harbor 설치 (HTTPS 적용)
 # -------------------------------------------------------------
 resource "helm_release" "harbor" {
   name             = "harbor"
@@ -41,20 +37,19 @@ resource "helm_release" "harbor" {
 
   values = [
     yamlencode({
-      # 1. 전역 설정: SA 만들지 말고 default 써라
+      # 1. 전역 설정
       serviceAccount = {
         create = false
         name   = "default" 
       }
 
-      # 2. Registry 컴포넌트: 혹시 모르니 여기도 default 명시 (양쪽 문법 다 커버)
+      # 2. Registry 컴포넌트
       registry = {
         replicas = 1
         serviceAccount = {
           create = false
           name   = "default"
         }
-        # 구버전/신버전 문법 호환성 확보를 위해 추가
         serviceAccountName = "default"
       }
 
@@ -62,31 +57,38 @@ resource "helm_release" "harbor" {
       core       = { serviceAccount = { create = false, name = "default" } }
       jobservice = { serviceAccount = { create = false, name = "default" } }
 
-      # 4. 외부 접속 및 기타 설정 (기존과 동일)
-      # [핵심 변경] Ingress(ALB) 설정으로 변경 (NodePort -> Ingress)
+      # 4. 외부 접속 및 기타 설정
       expose = {
         type = "ingress"
-        tls = { enabled = true } # ALB는 기본적으로 80으로 받아서 내부 443 등 처리 가능하나 Harbor 설정 따름
+        # Harbor 자체 TLS는 끄고 ALB에 맡김 (SSL Offloading)
+        tls = { enabled = false } 
         
         ingress = {
           hosts = {
-            core = "harbor.soo9725.site" # [수정] 진짜 도메인 적용
+            core = "harbor.${var.domain_name}"
           }
           controller = "alb"
           className  = "alb"
           annotations = {
-            "alb.ingress.kubernetes.io/scheme"      = "internet-facing"
-            "alb.ingress.kubernetes.io/target-type" = "ip"
-            "alb.ingress.kubernetes.io/group.name"  = "terraform-k8s" # Jenkins, ArgoCD와 그룹 통합
-            "alb.ingress.kubernetes.io/listen-ports" = "[{\"HTTP\": 80}]"
+            "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type"      = "ip"
+            "alb.ingress.kubernetes.io/group.name"       = "terraform-k8s"
+            
+            # [NEW] HTTPS 인증서 적용 (핵심)
+            "alb.ingress.kubernetes.io/certificate-arn"  = var.acm_certificate_arn
+            
+            # [NEW] HTTPS(443) 포트 열기 및 SSL 리다이렉트
+            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTPS\":443}, {\"HTTP\":80}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
+            
             "alb.ingress.kubernetes.io/healthcheck-path" = "/api/v2.0/ping"
-            "alb.ingress.kubernetes.io/success-codes" = "200"
+            "alb.ingress.kubernetes.io/success-codes"    = "200"
           }
         }
       }
 
-      # [중요] 외부 접속 URL. 진짜 도메인으로 변경
-      externalURL = "http://harbor.soo9725.site"
+      # [NEW] 외부 접속 URL (HTTPS로 변경)
+      externalURL = "https://harbor.${var.domain_name}"
       
       harborAdminPassword = "Harbor1234!"
 
@@ -116,6 +118,5 @@ resource "helm_release" "harbor" {
     })
   ]
   
-  # SA에 권한 부여가 끝난 뒤 Helm 실행
   depends_on = [kubernetes_default_service_account.harbor_default]
 }

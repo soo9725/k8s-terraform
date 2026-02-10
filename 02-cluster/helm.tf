@@ -1,4 +1,4 @@
-# helm.tf (Final Fix: Static Provisioning with Persistent Data & ArgoCD Global Domain Fix)
+# 02-cluster/helm.tf
 
 # 1. EFS CSI Driver (도구 설치)
 resource "helm_release" "efs_csi_driver" {
@@ -16,7 +16,7 @@ resource "helm_release" "efs_csi_driver" {
   depends_on = [aws_eks_node_group.main]
 }
 
-# 2. PV (Persistent Volume) - 수동 연결
+# 2. PV (Persistent Volume)
 resource "kubernetes_persistent_volume" "jenkins_pv" {
   metadata {
     name = "jenkins-pv"
@@ -56,7 +56,7 @@ resource "kubernetes_persistent_volume_claim" "jenkins_pvc" {
   }
 }
 
-# 4. StorageClass (껍데기)
+# 4. StorageClass
 resource "kubernetes_storage_class" "efs" {
   metadata {
     name = "efs-sc"
@@ -64,7 +64,7 @@ resource "kubernetes_storage_class" "efs" {
   storage_provisioner = "efs.csi.aws.com"
 }
 
-# 5. Jenkins 설치
+# 5. Jenkins 설치 (HTTPS 적용)
 resource "helm_release" "jenkins" {
   name       = "jenkins"
   repository = "https://charts.jenkins.io"
@@ -81,6 +81,7 @@ resource "helm_release" "jenkins" {
     name  = "controller.admin.password"
     value = "test1234" 
   }
+  
   # Ingress 활성화
   set {
     name  = "controller.ingress.enabled"
@@ -94,6 +95,8 @@ resource "helm_release" "jenkins" {
     name  = "controller.ingress.hostName"
     value = "jenkins.${var.domain_name}"
   }
+  
+  # [NEW] HTTPS 인증서 적용 및 포트 설정
   set {
     name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/scheme"
     value = "internet-facing"
@@ -107,6 +110,18 @@ resource "helm_release" "jenkins" {
     value = "terraform-k8s"
   }
   set {
+    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/certificate-arn"
+    value = var.acm_certificate_arn # ACM 변수 사용
+  }
+  set {
+    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/listen-ports"
+    value = "[{\"HTTPS\":443}, {\"HTTP\":80}]"
+  }
+  set {
+    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/ssl-redirect"
+    value = "443"
+  }
+  set {
     name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/healthcheck-path"
     value = "/login"
   }
@@ -114,6 +129,7 @@ resource "helm_release" "jenkins" {
     name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/success-codes"
     value = "200-399"
   }
+
   set {
     name  = "controller.serviceType"
     value = "NodePort"
@@ -141,24 +157,20 @@ resource "helm_release" "jenkins" {
   ]
 }
 
-# 6. ArgoCD 설치 (9.4.0 버전 + global.domain 추가)
+# 6. ArgoCD 설치 (HTTPS 적용)
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
   namespace        = "argocd"
-  version          = "9.4.0" # [FIX] 사용자 검증 버전 유지
+  version          = "9.4.0" # 사용자 검증 버전
   create_namespace = true
 
-  # [핵심 변경] values + yamlencode 사용
   values = [
     yamlencode({
-      # 1. 전역 도메인 설정 (example.com 문제 해결의 핵심)
       global = {
         domain = "argocd.${var.domain_name}"
       }
-
-      # 2. 서버 설정
       server = {
         service = {
           type = "NodePort"
@@ -167,7 +179,6 @@ resource "helm_release" "argocd" {
         ingress = {
           enabled = true
           ingressClassName = "alb"
-          # 리스트 형태로 명확하게 주입
           hosts = [
             "argocd.${var.domain_name}"
           ]
@@ -177,15 +188,21 @@ resource "helm_release" "argocd" {
             "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
             "alb.ingress.kubernetes.io/target-type"      = "ip"
             "alb.ingress.kubernetes.io/group.name"       = "terraform-k8s"
+            
+            # [중요] SSL Offloading: 파드와는 HTTP로 통신
             "alb.ingress.kubernetes.io/backend-protocol" = "HTTP"
+            
+            # [NEW] HTTPS 인증서 적용
+            "alb.ingress.kubernetes.io/certificate-arn"  = var.acm_certificate_arn
+            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTPS\":443}, {\"HTTP\":80}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
+            
             "alb.ingress.kubernetes.io/healthcheck-path" = "/healthz"
             "alb.ingress.kubernetes.io/success-codes"    = "200"
-            # [추가] SSL 리다이렉트 루프 방지
-            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTP\": 80}]"
           }
         }
       }
-      # 3. 설정 (SSL Termination을 ALB에서 하므로 내부는 insecure)
+      # Insecure 모드 (SSL Offloading 필수)
       configs = {
         params = {
           "server.insecure" = "true"

@@ -7,12 +7,20 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: terraform-k8s # 다른 앱들과 같은 ALB 사용
+    alb.ingress.kubernetes.io/group.name: terraform-k8s # 다른 앱들과 ALB 공유
+    
+    # [NEW] HTTPS 인증서 적용
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-northeast-1:894168368940:certificate/f9e48831-30dd-4343-849a-b964ed021783"
+    
+    # [NEW] HTTPS(443) 열기 & HTTP->HTTPS 리다이렉트
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/success-codes: "200"
 spec:
   rules:
-    - host: webapp.soo9725.site  # [수정] 웹앱도 도메인 부여
+    - host: webapp.soo9725.site
       http:
         paths:
           - path: /

@@ -67,3 +67,10 @@ variable "domain_name" {
   type        = string
   default     = "soo9725.site"
 }
+
+# [NEW] ACM 인증서 ARN (수동 생성한 것 박제)
+variable "acm_certificate_arn" {
+  description = "AWS ACM Certificate ARN"
+  type        = string
+  default     = "arn:aws:acm:ap-northeast-1:894168368940:certificate/f9e48831-30dd-4343-849a-b964ed021783"
+}
