@@ -4,12 +4,16 @@ metadata:
   name: python-app-ingress
   namespace: default
   annotations:
+    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: terraform-k8s # 다른 앱들과 같은 ALB 사용
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "200"
 spec:
-  ingressClassName: alb
   rules:
-    - http:
+    - host: webapp.soo9725.site  # [수정] 웹앱도 도메인 부여
+      http:
         paths:
           - path: /
             pathType: Prefix
