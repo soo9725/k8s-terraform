@@ -1,7 +1,7 @@
 # 02.5-addons/helm.tf
 
 # -------------------------------------------------------------
-# 1. Metrics Server (기존 노드 활용)
+# 1. Metrics Server (On-Demand 강제)
 # -------------------------------------------------------------
 resource "helm_release" "metrics_server" {
   name       = "metrics-server"
@@ -13,19 +13,16 @@ resource "helm_release" "metrics_server" {
   values = [
     yamlencode({
       args = ["--kubelet-insecure-tls"]
-      # [변경] 특정 풀이 아니라 'On-Demand' 능력만 요구함
-      # 기존 Terraform 노드(On-Demand)에도 배치될 수 있음
-      #nodeSelector = {
-        #"karpenter.sh/capacity-type" = "on-demand" 
-      #}
-      # 만약 기존 노드에 라벨이 없다면 nodeSelector를 아예 빼도 됩니다.
-      # (기존 노드가 꽉 차면 Karpenter가 알아서 확장함)
+      # [핵심] Metrics Server는 중요하므로 On-Demand 사용
+      nodeSelector = {
+        "karpenter.sh/capacity-type" = "on-demand"
+      }
     })
   ]
 }
 
 # -------------------------------------------------------------
-# 2. Karpenter 설치
+# 2. Karpenter 설치 (On-Demand 강제)
 # -------------------------------------------------------------
 resource "helm_release" "karpenter" {
   name             = "karpenter"
@@ -45,7 +42,10 @@ resource "helm_release" "karpenter" {
       settings = {
         clusterName = var.cluster_name
       }
-      # Karpenter 자체도 기존 노드에 뜨게 둠 (Selector 제거)
+      # Karpenter 컨트롤러 자체도 끊기면 안 되므로 On-Demand 사용
+      nodeSelector = {
+        "karpenter.sh/capacity-type" = "on-demand"
+      }
     })
   ]
 }
@@ -64,7 +64,9 @@ spec:
   role: "${aws_iam_role.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:
-        Name: "${var.project_name}-private-*" # [확인] 01-network 태그와 일치해야 함
+        # 01-network에서 설정한 태그와 일치하는지 꼭 확인하세요!
+        # 만약 karpenter.sh/discovery 태그가 없다면 Name 태그 사용
+        Name: "${var.project_name}-private-*"
   securityGroupSelectorTerms:
     - tags:
         "aws:eks:cluster-name": "${var.cluster_name}"
@@ -77,7 +79,7 @@ YAML
 }
 
 # -------------------------------------------------------------
-# 4. [통합] NodePool: Default (앱 & 시스템 확장용)
+# 4. NodePool: Default (Spot 우선, 하지만 On-Demand도 가능)
 # -------------------------------------------------------------
 resource "kubectl_manifest" "karpenter_nodepool_default" {
   yaml_body = <<YAML
@@ -87,17 +89,15 @@ metadata:
   name: default
 spec:
   template:
-    metadata:
-      labels:
-        tier: app # 기본적으로 앱용으로 사용
     spec:
       requirements:
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "t"] 
+        # [핵심] Spot을 리스트의 앞에 둠으로써 우선순위를 부여
         - key: "karpenter.sh/capacity-type"
           operator: In
-          values: ["spot", "on-demand"] # 스팟 우선 (비용 절감)
+          values: ["spot", "on-demand"] 
       nodeClassRef:
         name: default
   limits:
@@ -111,7 +111,7 @@ YAML
 }
 
 # -------------------------------------------------------------
-# 5. KEDA 설치
+# 5. KEDA 설치 (On-Demand 강제)
 # -------------------------------------------------------------
 resource "helm_release" "keda" {
   name             = "keda"
@@ -120,4 +120,13 @@ resource "helm_release" "keda" {
   namespace        = "keda"
   version          = "2.12.0"
   create_namespace = true
+
+  values = [
+    yamlencode({
+      # KEDA Operator도 중요하므로 On-Demand 사용
+      nodeSelector = {
+        "karpenter.sh/capacity-type" = "on-demand"
+      }
+    })
+  ]
 }
