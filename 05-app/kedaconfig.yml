@@ -13,6 +13,13 @@ spec:
   minReplicaCount: 1
   maxReplicaCount: 10
   
+  triggers:
+  - type: cpu
+    metadata:
+      # CPU 사용률이 50%를 넘으면 파드를 늘립니다.
+      type: Utilization
+      value: "50"
+
   # [Best Practice] Kafka 설치 전까지는 Trigger를 주석 처리하여 에러 방지
   # 나중에 Kafka 설치 후 주석 해제하고 ArgoCD Sync 하세요.
   # triggers:
