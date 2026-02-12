@@ -21,13 +21,14 @@ resource "helm_release" "metrics_server" {
 }
 
 # -------------------------------------------------------------
-# 2. Karpenter 설치 (On-Demand 강제)
+# 2. Karpenter 설치 (v0.32.1 버전 수정)
 # -------------------------------------------------------------
 resource "helm_release" "karpenter" {
   name             = "karpenter"
-  repository       = "oci://public.ecr.aws/karpenter"
-  chart            = "karpenter"
-  version          = "0.32.1"
+  # [Best Practice] OCI 레지스트리 직접 참조
+  chart            = "oci://public.ecr.aws/karpenter/karpenter"
+  # [핵심 수정] 0.32.1 -> v0.32.1 (v 접두사 필수)
+  version          = "v0.32.1"
   namespace        = "karpenter"
   create_namespace = true
 
@@ -41,6 +42,7 @@ resource "helm_release" "karpenter" {
       settings = {
         clusterName = var.cluster_name
       }
+      # v0.32.x 버전의 올바른 nodeSelector 설정 경로
       controller = {
         nodeSelector = {
           "karpenter.sh/capacity-type" = "on-demand"
@@ -53,8 +55,6 @@ resource "helm_release" "karpenter" {
 # -------------------------------------------------------------
 # 3. KEDA Operator 설치 (On-Demand 강제)
 # -------------------------------------------------------------
-# [답변 3] KEDA "설치"는 여기서 하는 게 맞습니다. (시스템 도구니까요)
-# 나중에 Layer 5에서 쓰는 건 "설정 파일(ScaledObject)"입니다.
 resource "helm_release" "keda" {
   name             = "keda"
   repository       = "https://kedacore.github.io/charts"
@@ -65,8 +65,15 @@ resource "helm_release" "keda" {
 
   values = [
     yamlencode({
+      # KEDA의 모든 컴포넌트가 On-Demand 노드에만 뜨도록 설정
       nodeSelector = {
         "karpenter.sh/capacity-type" = "on-demand"
+      }
+      operator = {
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      metricsServer = {
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
       }
     })
   ]
@@ -86,7 +93,7 @@ spec:
   role: "${aws_iam_role.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:
-        # [주의] 01-network 변수명과 일치하는지 확인하세요
+        # 01-network에서 정의한 Private 서브넷 태그와 일치해야 함
         Name: "${var.project_name}-private-*"
   securityGroupSelectorTerms:
     - tags:
@@ -115,10 +122,12 @@ spec:
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "t"]
-        # [핵심] Spot을 리스트 앞쪽에 두어 우선순위 부여
         - key: "karpenter.sh/capacity-type"
           operator: In
           values: ["spot", "on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
       nodeClassRef:
         name: default
   limits:

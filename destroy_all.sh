@@ -52,14 +52,24 @@ echo "🗑️ Destroying Layer 3 (Registry)..."
 cd 03-registry && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
-# 3. Layer 2: Cluster (EKS)
+# 3. Layer 2.5: Add-ons (Karpenter & KEDA) [추가됨]
+# --------------------------------------
+# Karpenter가 만든 노드가 있다면 여기서 정리되어야 함
+echo "--------------------------------------"
+echo "🔧 Destroying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
+cd 02.5-addons
+terraform destroy -auto-approve
+cd ..
+
+# --------------------------------------
+# 4. Layer 2: Cluster (EKS)
 # --------------------------------------
 echo "--------------------------------------"
 echo "🗑️ Destroying Layer 2 (Cluster)..."
 cd 02-cluster && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
-# 4. Layer 1: Network (비용 절감 모드)
+# 5. Layer 1: Network (비용 절감 모드)
 # --------------------------------------
 echo "--------------------------------------"
 echo "💸 Saving Cost: Layer 1 (Turning off NAT & Bastion)..."

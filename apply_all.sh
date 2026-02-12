@@ -61,6 +61,15 @@ aws eks update-kubeconfig --region ap-northeast-1 --name terraform-k8s-cluster -
 cd ..
 
 # --------------------------------------
+# 2.5 Layer 2.5: Add-ons (Karpenter & KEDA) [추가됨]
+# --------------------------------------
+echo "--------------------------------------"
+echo "🔧 Applying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
+cd 02.5-addons
+terraform apply -auto-approve
+cd ..
+
+# --------------------------------------
 # 3. Layer 3: Registry & Apps (Harbor 등 설치)
 # --------------------------------------
 echo "--------------------------------------"

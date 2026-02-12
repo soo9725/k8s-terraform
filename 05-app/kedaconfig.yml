@@ -1,0 +1,26 @@
+# 05-app/keda.yml
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: python-app-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: python-app     # 05-app/webapp.yml의 Deployment 이름과 일치
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  
+  # [Best Practice] Kafka 설치 전까지는 Trigger를 주석 처리하여 에러 방지
+  # 나중에 Kafka 설치 후 주석 해제하고 ArgoCD Sync 하세요.
+  # triggers:
+  # - type: kafka
+  #   metadata:
+  #     # 03-middleware에서 설치될 Kafka 서비스 주소 (예상)
+  #     bootstrapServers: my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
+  #     consumerGroup: python-app-group
+  #     topic: my-topic
+  #     lagThreshold: "10"
+  #     offsetResetPolicy: latest

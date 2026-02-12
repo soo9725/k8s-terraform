@@ -77,6 +77,11 @@ resource "aws_eks_node_group" "main" {
     min_size     = var.node_min_size
   }
 
+# [핵심 추가] 기존 노드에 Karpenter용 On-Demand 라벨 부착
+  labels = {
+    "karpenter.sh/capacity-type" = "on-demand"
+  }
+
   # EKS가 관리하는 Amazon Linux 2 이미지 사용
   ami_type = "AL2_x86_64"
 
