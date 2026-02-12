@@ -13,6 +13,12 @@ resource "helm_release" "efs_csi_driver" {
     value = "true"
   }
   
+  # [추가] EFS Driver도 중요하므로 On-Demand 사용
+  set {
+    name  = "nodeSelector.karpenter\\.sh/capacity-type"
+    value = "on-demand"
+  }
+  
   depends_on = [aws_eks_node_group.main]
 }
 
@@ -74,7 +80,6 @@ resource "helm_release" "jenkins" {
   timeout    = 900
 
   # [핵심] set 블록 대신 values + yamlencode 사용
-  # 이렇게 하면 쉼표(,)나 따옴표(") 이스케이프 문제를 신경 쓸 필요가 없습니다.
   values = [
     yamlencode({
       persistence = {
@@ -84,6 +89,11 @@ resource "helm_release" "jenkins" {
       controller = {
         admin = {
           password = "test1234"
+        }
+        
+        # [추가] Jenkins Master는 절대 죽으면 안 되므로 On-Demand 강제
+        nodeSelector = {
+          "karpenter.sh/capacity-type" = "on-demand"
         }
         
         # Ingress 및 HTTPS 설정
@@ -120,20 +130,26 @@ resource "helm_release" "jenkins" {
     aws_eks_node_group.main
   ]
 }
+
 # 6. ArgoCD 설치 (HTTPS 적용)
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
   namespace        = "argocd"
-  version          = "9.4.0" # 사용자 검증 버전
+  version          = "5.51.6" # 최신 안정 버전 권장 (사용자 검증 버전 9.4.0은 차트 버전이 아닐 수 있음, 확인 필요)
   create_namespace = true
 
   values = [
     yamlencode({
+      # [추가] 전역 설정으로 ArgoCD 모든 컴포넌트 On-Demand 강제
       global = {
         domain = "argocd.${var.domain_name}"
+        nodeSelector = {
+          "karpenter.sh/capacity-type" = "on-demand"
+        }
       }
+      
       server = {
         service = {
           type = "NodePort"
@@ -212,6 +228,12 @@ resource "helm_release" "external_dns" {
   set {
     name  = "domainFilters[0]"
     value = var.domain_name
+  }
+  
+  # [추가] DNS 서비스 중요하므로 On-Demand 사용
+  set {
+    name  = "nodeSelector.karpenter\\.sh/capacity-type"
+    value = "on-demand"
   }
   
   depends_on = [aws_eks_node_group.main, aws_iam_role.external_dns]

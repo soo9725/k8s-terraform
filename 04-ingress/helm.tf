@@ -40,4 +40,10 @@ resource "helm_release" "alb_controller" {
     name  = "vpcId"
     value = data.aws_eks_cluster.main.vpc_config[0].vpc_id
   }
+  
+  # [추가] ALB Controller는 매우 중요하므로 On-Demand 사용
+  set {
+    name  = "nodeSelector.karpenter\\.sh/capacity-type"
+    value = "on-demand"
+  }
 }

@@ -43,6 +43,8 @@ resource "helm_release" "harbor" {
         name   = "default" 
       }
 
+      # [추가] 중요 데이터 보호를 위해 모든 컴포넌트 On-Demand 강제
+      
       # 2. Registry 컴포넌트
       registry = {
         replicas = 1
@@ -51,11 +53,35 @@ resource "helm_release" "harbor" {
           name   = "default"
         }
         serviceAccountName = "default"
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
       }
 
       # 3. 기타 컴포넌트 강제 지정
-      core       = { serviceAccount = { create = false, name = "default" } }
-      jobservice = { serviceAccount = { create = false, name = "default" } }
+      core       = { 
+        serviceAccount = { create = false, name = "default" }
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      jobservice = { 
+        serviceAccount = { create = false, name = "default" }
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      portal     = { 
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      # DB와 Redis는 특히 중요하므로 필수
+      database   = { 
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      redis      = { 
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      
+      trivy      = { 
+        enabled = false 
+        # (Enable 할 경우를 대비해 미리 추가)
+        nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+      }
+      notary     = { enabled = false }
 
       # 4. 외부 접속 및 기타 설정
       expose = {
@@ -113,8 +139,6 @@ resource "helm_release" "harbor" {
 
       # 6. 기타 설정
       portal     = { replicas = 1 }
-      trivy      = { enabled = false }
-      notary     = { enabled = false }
     })
   ]
   

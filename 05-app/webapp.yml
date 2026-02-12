@@ -29,6 +29,20 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "500m"
+      
+      # [추가] "나는 Spot 인스턴스를 선호해!" (비용 절감)
+      # 강제(Required)가 아니라 선호(Preferred)이므로, 
+      # Spot 재고가 없으면 On-Demand에도 뜰 수 있음 (유연성 확보)
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: karpenter.sh/capacity-type
+                operator: In
+                values:
+                - spot
 ---
 apiVersion: v1
 kind: Service
