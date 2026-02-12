@@ -8,6 +8,16 @@ echo "🚨 [Start] 전체 인프라 삭제를 시작합니다..."
 echo "--------------------------------------"
 echo "🧹 Cleaning up Kubernetes Resources (To prevent Zombie ALB)..."
 
+echo "   - Deleting KEDA ScaledObjects..."
+# 파일이 존재하면 파일 기준으로 삭제
+if [ -f "05-app/kedaconfig.yml" ]; then
+  kubectl delete -f 05-app/kedaconfig.yml --ignore-not-found=true
+fi
+
+# (안전장치) 파일이 없거나 찌꺼기가 남았을 경우를 대비해 강제 삭제
+kubectl delete scaledobject --all -A --ignore-not-found=true
+kubectl delete triggerauthentication --all -A --ignore-not-found=true
+
 # ArgoCD 앱 삭제 (파이널라이저 때문에 안 지워지는 경우 강제 삭제)
 # 앱이 삭제되어야 연관된 LoadBalancer/Ingress가 정리됨
 kubectl delete application app -n argocd --ignore-not-found --wait=true || kubectl patch application app -n argocd -p '{"metadata":{"finalizers":[]}}' --type=merge
@@ -57,9 +67,7 @@ cd 03-registry && terraform destroy -auto-approve && cd ..
 # Karpenter가 만든 노드가 있다면 여기서 정리되어야 함
 echo "--------------------------------------"
 echo "🔧 Destroying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
-cd 02.5-addons
-terraform destroy -auto-approve
-cd ..
+cd 02.5-addons && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
 # 4. Layer 2: Cluster (EKS)
