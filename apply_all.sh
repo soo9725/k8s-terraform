@@ -126,3 +126,64 @@ echo ""
 
 echo "--------------------------------------"
 echo "✅ [Complete] 모든 인프라가 성공적으로 배포되었습니다!"
+
+# ... (앞부분 스크립트 생략) ...
+
+# --------------------------------------
+# 8. 배포 상태 검증 (Verification)
+# --------------------------------------
+echo "--------------------------------------"
+echo "🔍 [Verify] 리소스 상태 검증을 시작합니다 (최대 5분 대기)..."
+
+# [함수 1] 모든 Pod가 Running 또는 Completed 인지 확인
+check_pods() {
+  # Running이나 Completed가 '아닌' 녀석들의 개수를 셉니다.
+  # wc -l 은 개수를 세는 명령어입니다. grep -vE는 제외하는 명령어입니다.
+  local not_ready_count=$(kubectl get pods -A --no-headers 2>/dev/null | grep -vE "Running|Completed" | wc -l)
+  echo "$not_ready_count"
+}
+
+# [함수 2] 모든 Ingress에 주소(ALB DNS)가 할당되었는지 확인
+check_ingress() {
+  local total_ingress=$(kubectl get ingress -A --no-headers 2>/dev/null | wc -l)
+  # Ingress가 아예 없으면 0을 반환 (성공으로 간주)
+  if [ "$total_ingress" -eq 0 ]; then
+    echo "0" # 남은 게 0개라는 의미
+    return
+  fi
+  
+  # ADDRESS 컬럼(보통 AWS 도메인)이 있는 녀석만 셉니다.
+  local ready_ingress=$(kubectl get ingress -A --no-headers 2>/dev/null | grep ".amazonaws.com" | wc -l)
+  
+  # 전체 개수 - 준비된 개수 = 남은 개수
+  echo $((total_ingress - ready_ingress))
+}
+
+# 최대 30번 반복 (30 * 10초 = 300초 = 5분)
+MAX_RETRIES=30
+ALL_READY=false
+
+for ((i=1; i<=MAX_RETRIES; i++)); do
+  NOT_READY_PODS=$(check_pods)
+  NOT_READY_INGRESS=$(check_ingress)
+
+  # 둘 다 0이면 (모두 준비됨) 반복문 탈출
+  if [ "$NOT_READY_PODS" -eq 0 ] && [ "$NOT_READY_INGRESS" -eq 0 ]; then
+    ALL_READY=true
+    break
+  fi
+
+  echo "   ⏳ 대기 중... (준비 안 된 Pod: $NOT_READY_PODS 개 / 주소 없는 Ingress: $NOT_READY_INGRESS 개)"
+  sleep 10
+done
+
+echo "--------------------------------------"
+
+if [ "$ALL_READY" = true ]; then
+  # 요청하신 성공 메시지
+  echo "✅ 모든 pod, ingress 가 정상 동작 중입니다."
+else
+  # 5분이 지나도 안 떴을 때
+  echo "❌ 일부 리소스가 아직 준비되지 않았습니다. 수동 확인이 필요합니다."
+  echo "   (Tip: kubectl get pods -A / kubectl get ingress -A 명령어로 확인하세요)"
+fi
