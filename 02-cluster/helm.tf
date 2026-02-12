@@ -73,90 +73,53 @@ resource "helm_release" "jenkins" {
   version    = "5.8.134"
   timeout    = 900
 
-  set {
-    name  = "persistence.existingClaim"
-    value = kubernetes_persistent_volume_claim.jenkins_pvc.metadata[0].name
-  }
-  set {
-    name  = "controller.admin.password"
-    value = "test1234" 
-  }
-  
-  # Ingress 활성화
-  set {
-    name  = "controller.ingress.enabled"
-    value = "true"
-  }
-  set {
-    name  = "controller.ingress.ingressClassName"
-    value = "alb"
-  }
-  set {
-    name  = "controller.ingress.hostName"
-    value = "jenkins.${var.domain_name}"
-  }
-  
-  # [NEW] HTTPS 인증서 적용 및 포트 설정
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/scheme"
-    value = "internet-facing"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/target-type"
-    value = "ip"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/group\\.name"
-    value = "terraform-k8s"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/certificate-arn"
-    value = var.acm_certificate_arn # ACM 변수 사용
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/listen-ports"
-    value = "[{\"HTTPS\":443}, {\"HTTP\":80}]"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/ssl-redirect"
-    value = "443"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/healthcheck-path"
-    value = "/login"
-  }
-  set {
-    name  = "controller.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/success-codes"
-    value = "200-399"
-  }
+  # [핵심] set 블록 대신 values + yamlencode 사용
+  # 이렇게 하면 쉼표(,)나 따옴표(") 이스케이프 문제를 신경 쓸 필요가 없습니다.
+  values = [
+    yamlencode({
+      persistence = {
+        existingClaim = kubernetes_persistent_volume_claim.jenkins_pvc.metadata[0].name
+      }
+      
+      controller = {
+        admin = {
+          password = "test1234"
+        }
+        
+        # Ingress 및 HTTPS 설정
+        ingress = {
+          enabled          = true
+          ingressClassName = "alb"
+          hostName         = "jenkins.${var.domain_name}"
+          annotations = {
+            "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type"      = "ip"
+            "alb.ingress.kubernetes.io/group.name"       = "terraform-k8s"
+            "alb.ingress.kubernetes.io/healthcheck-path" = "/login"
+            "alb.ingress.kubernetes.io/success-codes"    = "200-399"
+            
+            # [오류 해결 포인트] 여기서 변수 그대로 넣으면 깔끔하게 들어갑니다.
+            "alb.ingress.kubernetes.io/certificate-arn"  = var.acm_certificate_arn
+            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTPS\":443}, {\"HTTP\":80}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
+          }
+        }
 
-  set {
-    name  = "controller.serviceType"
-    value = "NodePort"
-  }
-  set {
-    name  = "controller.nodePort"
-    value = "30030"
-  }
-  set {
-    name  = "controller.runAsUser"
-    value = "1000"
-  }
-  set {
-    name  = "controller.fsGroup"
-    value = "1000"
-  }
-  set {
-    name  = "controller.initializePipes"
-    value = "false"
-  }
+        # 기타 설정
+        serviceType     = "NodePort"
+        nodePort        = 30030
+        runAsUser       = 1000
+        fsGroup         = 1000
+        initializePipes = false
+      }
+    })
+  ]
 
   depends_on = [
     kubernetes_persistent_volume_claim.jenkins_pvc,
     aws_eks_node_group.main
   ]
 }
-
 # 6. ArgoCD 설치 (HTTPS 적용)
 resource "helm_release" "argocd" {
   name             = "argocd"
