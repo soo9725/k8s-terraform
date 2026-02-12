@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: python-web
-        image: harbor-core.harbor.svc.cluster.local/library/python-app:11
+        image: harbor.soo9725.site/library/python-app:12
         # [핵심] 컨테이너가 죽지 않고 웹 서버 역할을 하도록 명령 추가
         command: ["/bin/sh", "-c"]
         args:
