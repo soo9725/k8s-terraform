@@ -28,7 +28,7 @@ resource "helm_release" "karpenter" {
   # [Best Practice] OCI 레지스트리 직접 참조
   chart            = "oci://public.ecr.aws/karpenter/karpenter"
   # [핵심 수정] 0.32.1 -> v0.32.1 (v 접두사 필수)
-  version          = "v0.32.1"
+  version          = "0.35.1"
   namespace        = "karpenter"
   create_namespace = true
 
@@ -80,7 +80,7 @@ resource "helm_release" "keda" {
 }
 
 # -------------------------------------------------------------
-# 4. EC2NodeClass (AWS 인프라 연결)
+# 4. EC2NodeClass (AWS 인프라 연결) - [핵심 수정 구간]
 # -------------------------------------------------------------
 resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = <<YAML
@@ -93,8 +93,9 @@ spec:
   role: "${aws_iam_role.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:
-        # 01-network에서 정의한 Private 서브넷 태그와 일치해야 함
-        Name: "${var.project_name}-private-*"
+        # [수정] 실제 서브넷 이름(terraform-k8s-private-*)과 매칭되도록 와일드카드 적용
+        # 이렇게 하면 프로젝트 이름 변수와 상관없이 'private'이 포함된 서브넷을 모두 찾습니다.
+        Name: "terraform-k8s-private-*"
   securityGroupSelectorTerms:
     - tags:
         "aws:eks:cluster-name": "${var.cluster_name}"
@@ -107,7 +108,7 @@ YAML
 }
 
 # -------------------------------------------------------------
-# 5. NodePool (Spot 우선, On-Demand 허용)
+# 5. NodePool (최소 사양 및 amd64 고정)
 # -------------------------------------------------------------
 resource "kubectl_manifest" "karpenter_node_pool" {
   yaml_body = <<YAML
@@ -122,12 +123,15 @@ spec:
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "t"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: NotIn
+          values: ["nano", "micro", "small"] # 너무 작은 인스턴스는 생성하지 않음 (자원 부족 방지)
         - key: "karpenter.sh/capacity-type"
           operator: In
           values: ["spot", "on-demand"]
         - key: "kubernetes.io/arch"
           operator: In
-          values: ["amd64"]
+          values: ["amd64"] # 파드 아키텍처와 일치하도록 amd64로 고정
       nodeClassRef:
         name: default
   limits:
