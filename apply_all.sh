@@ -160,7 +160,7 @@ check_ingress() {
 }
 
 # 최대 30번 반복 (30 * 10초 = 300초 = 5분)
-MAX_RETRIES=30
+MAX_RETRIES=12
 ALL_READY=false
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
