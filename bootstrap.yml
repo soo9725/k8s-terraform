@@ -13,6 +13,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: default
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas # ArgoCD가 replicas 값의 차이를 무시하도록 설정
   syncPolicy:
     automated:
       prune: true
