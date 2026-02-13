@@ -58,6 +58,7 @@ resource "aws_iam_role_policy_attachment" "karpenter_node_policies" {
 
 # Karpenter Node용 Instance Profile
 resource "aws_iam_instance_profile" "karpenter_node" {
-  name = "KarpenterNodeInstanceProfile-${var.cluster_name}"
+  name = "karpenter-node-${var.cluster_name}"
   role = aws_iam_role.karpenter_node.name
 }
+

@@ -90,11 +90,11 @@ metadata:
   name: default
 spec:
   amiFamily: AL2
-  role: "${aws_iam_role.karpenter_node.name}"
+  # [수정] role과 instanceProfile을 모두 적어줍니다.
+  role: "karpenter-node-${var.cluster_name}"
+  instanceProfile: "${aws_iam_instance_profile.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:
-        # [수정] 실제 서브넷 이름(terraform-k8s-private-*)과 매칭되도록 와일드카드 적용
-        # 이렇게 하면 프로젝트 이름 변수와 상관없이 'private'이 포함된 서브넷을 모두 찾습니다.
         Name: "terraform-k8s-private-*"
   securityGroupSelectorTerms:
     - tags:
@@ -122,16 +122,16 @@ spec:
       requirements:
         - key: karpenter.k8s.aws/instance-category
           operator: In
-          values: ["c", "m", "t"]
-        - key: karpenter.k8s.aws/instance-size
-          operator: NotIn
-          values: ["nano", "micro", "small"] # 너무 작은 인스턴스는 생성하지 않음 (자원 부족 방지)
+          values: ["c", "m", "t", "r"] # 메모리 요청이 크므로 r 타입 추가
         - key: "karpenter.sh/capacity-type"
           operator: In
           values: ["spot", "on-demand"]
         - key: "kubernetes.io/arch"
           operator: In
-          values: ["amd64"] # 파드 아키텍처와 일치하도록 amd64로 고정
+          values: ["amd64"]
+        - key: "karpenter.k8s.aws/instance-generation"
+          operator: Gt
+          values: ["2"] # 너무 구형 인스턴스 제외
       nodeClassRef:
         name: default
   limits:
