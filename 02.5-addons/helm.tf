@@ -98,7 +98,7 @@ spec:
         Name: "terraform-k8s-private-*"
   securityGroupSelectorTerms:
     - tags:
-        "aws:eks:cluster-name": "${var.cluster_name}"
+        "kubernetes.io/cluster/${var.cluster_name}": "owned"
   tags:
     Name: karpenter-node
     CreatedBy: karpenter
