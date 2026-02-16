@@ -90,8 +90,7 @@ metadata:
   name: default
 spec:
   amiFamily: AL2
-  # [수정] role과 instanceProfile을 모두 적어줍니다.
-  role: "karpenter-node-${var.cluster_name}"
+  # [수정] role 삭제하고 instanceProfile만 남김 (중복 정의 에러 해결)
   instanceProfile: "${aws_iam_instance_profile.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:

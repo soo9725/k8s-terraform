@@ -101,15 +101,11 @@ resource "aws_iam_instance_profile" "node" {
 # IRSA(IAM Role for Service Account)를 위한 OIDC Provider 설정 [필수]
 # ----------------------------------------------------------------
 
-# [Best Practice 수정] 1. 기존 OIDC Provider가 있는지 조회 (중복 생성 에러 방지)
-data "aws_iam_openid_connect_provider" "existing" {
-  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
-}
+# [수정됨] 복잡한 조건부 생성(count) 로직 제거 -> 표준 생성 방식으로 변경
+# 이유: EKS 생성 전에는 OIDC URL을 알 수 없어 count 계산 시 에러 발생함.
+#       새로 생성되는 클러스터는 항상 새로운 OIDC URL을 가지므로 중복 우려 없음.
 
-# [Best Practice 수정] 2. 없으면 생성 (있으면 count=0으로 생성 안 함)
 resource "aws_iam_openid_connect_provider" "main" {
-  count = data.aws_iam_openid_connect_provider.existing.arn == null ? 1 : 0
-
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   
@@ -121,10 +117,10 @@ resource "aws_iam_openid_connect_provider" "main" {
   }
 }
 
-# [Best Practice 수정] 3. 안전한 참조를 위한 로컬 변수 정의
-# (기존 것이든, 새로 만든 것이든 유효한 ARN과 URL을 제공)
+# [수정됨] 안전한 참조를 위한 로컬 변수 정의 (단순화)
+# 조건문 없이 바로 위에서 생성한 리소스를 바라보게 수정함
 locals {
-  oidc_provider_arn = data.aws_iam_openid_connect_provider.existing.arn != null ? data.aws_iam_openid_connect_provider.existing.arn : aws_iam_openid_connect_provider.main[0].arn
+  oidc_provider_arn = aws_iam_openid_connect_provider.main.arn
   oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
 }
 
@@ -169,13 +165,13 @@ resource "aws_iam_role" "external_dns" {
       {
         Effect = "Allow"
         Principal = {
-          # [수정] 리소스 직접 참조가 아닌 local 변수 참조
+          # [유지] 리소스 직접 참조가 아닌 local 변수 참조
           Federated = local.oidc_provider_arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            # [수정] 리소스 직접 참조가 아닌 local 변수 참조
+            # [유지] 리소스 직접 참조가 아닌 local 변수 참조
             "${local.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:external-dns"
           }
         }

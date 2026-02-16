@@ -210,3 +210,17 @@ resource "aws_eks_addon" "ebs_csi_driver" {
     aws_iam_role_policy_attachment.node_ebs_policy
   ]
 }
+
+# 02-cluster/main.tf 맨 아래 추가
+
+# -----------------------------------------------------------
+# 8. [근본 해결] Karpenter 노드용 Access Entry 등록
+# -----------------------------------------------------------
+# Karpenter가 생성한 노드의 IAM Role이 클러스터에 합류할 수 있도록 허용합니다.
+
+resource "aws_eks_access_entry" "karpenter_node" {
+  cluster_name  = aws_eks_cluster.main.name
+  # [중요] 02.5-addons에서 사용하는 노드 Role의 ARN을 정확히 기입
+  principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/karpenter-node-${var.cluster_name}"
+  type          = "EC2_LINUX" # 워커 노드 타입으로 지정
+}
