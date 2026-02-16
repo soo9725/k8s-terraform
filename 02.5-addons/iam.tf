@@ -36,6 +36,7 @@ resource "aws_iam_role_policy" "karpenter_controller_additional" {
       {
         Action = [
           "ec2:RunInstances",
+          "ec2:TerminateInstances", # [핵심 추가] 노드 삭제(Terminate)를 위해 필수적인 권한
           "ec2:CreateFleet",
           "ec2:CreateLaunchTemplate",
           "ec2:CreateTags",

@@ -137,7 +137,8 @@ spec:
     cpu: 1000
   disruption:
     consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h
+    consolidateAfter: 30s
+    expireAfter: 1h
 YAML
 
   depends_on = [kubectl_manifest.karpenter_node_class]
