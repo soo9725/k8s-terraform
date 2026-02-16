@@ -118,19 +118,9 @@ resource "aws_eks_addon" "kube_proxy" {
 }
 
 # -----------------------------------------------------------
-# 4. OIDC Provider [수정됨: 지문 하드코딩 적용]
+# 4. OIDC Provider [삭제됨]
 # -----------------------------------------------------------
-# [삭제] data "tls_certificate"는 불안정하므로 사용하지 않음
-
-resource "aws_iam_openid_connect_provider" "eks" {
-  client_id_list  = ["sts.amazonaws.com"]
-  
-  # [Best Practice] AWS EKS의 OIDC Root CA Thumbprint는 전 세계 공통값 사용
-  # 동적으로 가져올 경우 Leaf 인증서를 가져오는 버그 방지
-  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]
-  
-  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
-}
+# iam.tf에서 멱등성(중복 방지)을 보장하는 코드로 통합 관리하므로 삭제합니다.
 
 # -----------------------------------------------------------
 # 5. Bastion 보안 및 권한 설정

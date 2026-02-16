@@ -59,7 +59,7 @@ resource "aws_subnet" "private" {
   tags = {
     Name = "${var.project_name}-private-${count.index + 1}"
     "kubernetes.io/role/internal-elb" = "1"
-    "karpenter.sh/discovery" = var.project_name
+    "karpenter.sh/discovery" = "${var.project_name}-cluster"
   }
 }
 

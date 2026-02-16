@@ -28,8 +28,8 @@ output "cluster_oidc_issuer_url" {
 
 output "oidc_provider_arn" {
   description = "IAM OIDC Provider ARN (Layer 4의 ALB Controller 권한 설정에 필수)"
-  # 주의: 02-cluster/iam.tf 파일에 aws_iam_openid_connect_provider 리소스 이름이 'main'이어야 합니다.
-  value       = aws_iam_openid_connect_provider.main.arn
+  # [수정됨] iam.tf의 local 변수를 참조하여 안전하게 값 반환 (직접 참조 시 에러 발생 가능)
+  value       = local.oidc_provider_arn
 }
 
 # ----------------------------------------------------------------

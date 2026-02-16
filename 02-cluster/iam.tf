@@ -101,23 +101,31 @@ resource "aws_iam_instance_profile" "node" {
 # IRSA(IAM Role for Service Account)를 위한 OIDC Provider 설정 [필수]
 # ----------------------------------------------------------------
 
-# 1. EKS 클러스터의 OIDC Issuer URL에서 TLS 인증서 정보(Thumbprint)를 조회
-data "tls_certificate" "main" {
+# [Best Practice 수정] 1. 기존 OIDC Provider가 있는지 조회 (중복 생성 에러 방지)
+data "aws_iam_openid_connect_provider" "existing" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
 
-# 2. IAM OIDC Identity Provider 생성
-# (이것이 있어야 AWS IAM이 우리 EKS 클러스터를 "믿을 수 있는 인증 기관"으로 인식함)
+# [Best Practice 수정] 2. 없으면 생성 (있으면 count=0으로 생성 안 함)
 resource "aws_iam_openid_connect_provider" "main" {
+  count = data.aws_iam_openid_connect_provider.existing.arn == null ? 1 : 0
+
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   
-  # 위에서 조회한 인증서의 지문(Thumbprint)을 등록
-  thumbprint_list = [data.tls_certificate.main.certificates[0].sha1_fingerprint]
+  # [사용자 요청 유지] AWS EKS 전용 하드코딩된 Thumbprint 사용 (안정성 확보)
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]
   
   tags = {
     Name = "${var.project_name}-oidc-provider"
   }
+}
+
+# [Best Practice 수정] 3. 안전한 참조를 위한 로컬 변수 정의
+# (기존 것이든, 새로 만든 것이든 유효한 ARN과 URL을 제공)
+locals {
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.existing.arn != null ? data.aws_iam_openid_connect_provider.existing.arn : aws_iam_openid_connect_provider.main[0].arn
+  oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
 }
 
 # -----------------------------------------------------------
@@ -161,12 +169,14 @@ resource "aws_iam_role" "external_dns" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.main.arn
+          # [수정] 리소스 직접 참조가 아닌 local 변수 참조
+          Federated = local.oidc_provider_arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            "${replace(aws_iam_openid_connect_provider.main.url, "https://", "")}:sub" = "system:serviceaccount:kube-system:external-dns"
+            # [수정] 리소스 직접 참조가 아닌 local 변수 참조
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:external-dns"
           }
         }
       }
