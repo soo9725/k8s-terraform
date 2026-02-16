@@ -69,6 +69,8 @@ GitOps 구현: K8s Manifest 변경 사항을 감지하여 자동 배포.
 
 [ ] Slack 연동: Alertmanager (장애 알람) 및 BotKube (채팅으로 클러스터 제어).
 
+[ ] Apache Kafka 설치(cluster로 설치)
+
 ## STEP 6. 오토스케일링 (Auto Scaling & FinOps)
 [ ] Karpenter: 트래픽 폭주 시 Spot Instance 자동 프로비저닝.
 
