@@ -10,7 +10,7 @@ spec:
     name: python-app     # 05-app/webapp.yml의 Deployment 이름과 일치
   pollingInterval: 30
   cooldownPeriod: 300
-  minReplicaCount: 1
+  minReplicaCount: 2
   maxReplicaCount: 10
   
   triggers:

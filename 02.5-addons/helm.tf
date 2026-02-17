@@ -137,7 +137,6 @@ spec:
     cpu: 1000
   disruption:
     consolidationPolicy: WhenUnderutilized
-    consolidateAfter: 30s
     expireAfter: 1h
 YAML
 

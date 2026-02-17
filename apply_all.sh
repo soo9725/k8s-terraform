@@ -42,7 +42,7 @@ if ! terraform apply -auto-approve; then
       echo "🧟 Zombie OIDC Provider found: $EXISTING_ARN"
       echo "🚑 Attempting auto-import..."
       
-      terraform import aws_iam_openid_connect_provider.eks "$EXISTING_ARN"
+      terraform import aws_iam_openid_connect_provider.main "$EXISTING_ARN"
       
       echo "🔄 Retrying Terraform Apply..."
       terraform apply -auto-approve

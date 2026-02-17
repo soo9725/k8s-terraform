@@ -221,6 +221,7 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 resource "aws_eks_access_entry" "karpenter_node" {
   cluster_name  = aws_eks_cluster.main.name
   # [중요] 02.5-addons에서 사용하는 노드 Role의 ARN을 정확히 기입
-  principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/karpenter-node-${var.cluster_name}"
+  principal_arn = aws_iam_role.node.arn
   type          = "EC2_LINUX" # 워커 노드 타입으로 지정
+  depends_on = [aws_iam_role.node]
 }
