@@ -79,6 +79,15 @@ terraform apply -auto-approve
 cd ..
 
 # --------------------------------------
+# 3.5 Layer 3.5: Middleware (Kafka) [신규 추가]
+# --------------------------------------
+echo "--------------------------------------"
+echo "📨 Applying Layer 3.5 (Middleware: Kafka)..."
+cd 03.5-middleware
+terraform apply -auto-approve
+cd ..
+
+# --------------------------------------
 # 4. Layer 4: Ingress (ALB Controller 등)
 # --------------------------------------
 echo "--------------------------------------"
