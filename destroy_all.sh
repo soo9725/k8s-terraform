@@ -8,6 +8,10 @@ echo "🚨 [Start] 전체 인프라 삭제를 시작합니다..."
 echo "--------------------------------------"
 echo "🧹 Cleaning up Kubernetes Resources (To prevent Zombie ALB & Nodes)..."
 
+# [핵심 추가] ArgoCD가 리소스를 계속 되살리는 것을 막기 위해 동기화를 먼저 끕니다.
+echo "   - Disabling ArgoCD Auto-Sync (To prevent resource resurrection)..."
+kubectl get applications -n argocd -o name | xargs -I {} kubectl patch {} -n argocd --type merge -p '{"spec":{"syncPolicy":null}}' 2>/dev/null || true
+
 # [핵심 추가] Kafka 리소스의 잠금(Finalizer)을 미리 풀어 삭제 멈춤 현상을 방지합니다.
 echo "   - Patching Kafka Finalizers (To prevent deletion hang)..."
 kubectl get kafka -n kafka -o name | xargs -I {} kubectl patch {} -n kafka --type merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
