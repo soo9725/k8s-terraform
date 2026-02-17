@@ -1,4 +1,4 @@
-# 05-app/keda.yml
+# 05-app/kedaconfig.yml
 
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -7,27 +7,27 @@ metadata:
   namespace: default
 spec:
   scaleTargetRef:
-    name: python-app     # 05-app/webapp.yml의 Deployment 이름과 일치
-  pollingInterval: 30
+    name: kafka-test-consumer
+  pollingInterval: 10    # [수정] 빠른 테스트를 위해 주기 단축 (30 -> 10)
   cooldownPeriod: 300
-  minReplicaCount: 2
+  minReplicaCount: 1
   maxReplicaCount: 10
   
   triggers:
   - type: cpu
     metadata:
-      # CPU 사용률이 50%를 넘으면 파드를 늘립니다.
       type: Utilization
       value: "50"
 
-  # [Best Practice] Kafka 설치 전까지는 Trigger를 주석 처리하여 에러 방지
-  # 나중에 Kafka 설치 후 주석 해제하고 ArgoCD Sync 하세요.
-  # triggers:
-  # - type: kafka
-  #   metadata:
-  #     # 03-middleware에서 설치될 Kafka 서비스 주소 (예상)
-  #     bootstrapServers: my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
-  #     consumerGroup: python-app-group
-  #     topic: my-topic
-  #     lagThreshold: "10"
-  #     offsetResetPolicy: latest
+  # [핵심] Kafka 트리거 활성화
+  - type: kafka
+    metadata:
+      # 03.5에서 설치된 Kafka 서비스 주소 (Full DNS 사용)
+      bootstrapServers: my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
+      # 앱이 로그를 읽어갈 그룹 (임의 지정 가능)
+      consumerGroup: python-app-group
+      # kafkatopic.yml에 정의한 토픽 이름과 반드시 일치해야 함
+      topic: webapp-log-topic
+      # [핵심] Lag(처리 못한 메시지)이 10개가 쌓이면 파드를 늘리기 시작함
+      lagThreshold: "3"
+      offsetResetPolicy: latest

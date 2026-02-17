@@ -12,7 +12,7 @@ spec:
     path: 05-app  # 사용자님의 실제 폴더명
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    #namespace: 
   ignoreDifferences:
     - group: apps
       kind: Deployment

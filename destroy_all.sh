@@ -8,6 +8,14 @@ echo "🚨 [Start] 전체 인프라 삭제를 시작합니다..."
 echo "--------------------------------------"
 echo "🧹 Cleaning up Kubernetes Resources (To prevent Zombie ALB & Nodes)..."
 
+# [핵심 추가] Kafka 리소스의 잠금(Finalizer)을 미리 풀어 삭제 멈춤 현상을 방지합니다.
+echo "   - Patching Kafka Finalizers (To prevent deletion hang)..."
+kubectl get kafka -n kafka -o name | xargs -I {} kubectl patch {} -n kafka --type merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+kubectl get kafkatopic -n kafka -o name | xargs -I {} kubectl patch {} -n kafka --type merge -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+
+# [핵심 추가] Kafka 리소스를 API 상에서 먼저 삭제 요청합니다.
+kubectl delete kafka --all -n kafka --ignore-not-found=true --timeout=30s || echo "⚠️ Kafka deletion timed out, proceeding..."
+
 # [핵심 추가] KEDA 리소스가 오퍼레이터 삭제 전 확실히 사라지도록 Finalizer 선제 제거
 # 청소부(Operator)가 먼저 퇴근하기 전에 쓰레기(ScaledObject)의 잠금을 미리 푸는 작업입니다.
 echo "   - Patching KEDA Finalizers (To prevent timeout)..."
@@ -74,6 +82,13 @@ echo "🗑️ Destroying Layer 4 (Ingress)..."
 cd 04-ingress && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
+# 1.5 Layer 3.5: Middleware (Kafka) [신규 추가]
+# --------------------------------------
+echo "--------------------------------------"
+echo "📨 Destroying Layer 3.5 (Kafka Middleware)..."
+cd 03.5-middleware && terraform destroy -auto-approve && cd ..
+
+# --------------------------------------
 # 2. Layer 3: Registry & Apps
 # --------------------------------------
 echo "--------------------------------------"
@@ -93,7 +108,7 @@ cd 02.5-addons && terraform destroy -auto-approve && cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "🗑️ Destroying Layer 2 (Cluster)..."
-cd 02-cluster 
+cd 02-cluster
 
 # 클러스터 삭제 전 OIDC ID 미리 확보 (삭제 후에는 확인 불가)
 OIDC_URL=$(aws eks describe-cluster --name terraform-k8s-cluster --query "cluster.identity.oidc.issuer" --output text 2>/dev/null || echo "")
@@ -119,7 +134,7 @@ cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "💸 Saving Cost: Layer 1 (Turning off NAT & Bastion)..."
-cd 01-network 
+cd 01-network
 # 변수를 false로 덮어씌워 NAT/Bastion만 삭제 (VPC/EFS/S3는 유지)
 terraform apply -var 'enable_nat_bastion=false' -auto-approve
 cd ..
