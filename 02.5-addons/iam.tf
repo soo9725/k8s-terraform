@@ -101,3 +101,23 @@ resource "aws_iam_instance_profile" "karpenter_node" {
   name = "karpenter-node-${var.cluster_name}"
   role = aws_iam_role.karpenter_node.name
 }
+
+# -----------------------------------------------------------
+# [근본 해결] Karpenter 노드용 Access Entry 등록
+# -----------------------------------------------------------
+# 이 레이어에서 Role(aws_iam_role.karpenter_node)이 생성된 직후에 실행되므로
+# 의존성 문제가 완벽하게 해결됩니다.
+
+resource "aws_eks_access_entry" "karpenter_node" {
+  # EKS 클러스터 이름 (변수 또는 remote_state 사용)
+  cluster_name  = var.cluster_name 
+  
+  # 같은 파일 위쪽에서 정의한 Role의 ARN을 직접 참조
+  principal_arn = aws_iam_role.karpenter_node.arn
+  
+  # 노드 자격 증명 타입
+  type          = "EC2_LINUX"
+
+  # 확실히 Role이 만들어진 후 실행되도록 보장
+  depends_on = [aws_iam_role.karpenter_node]
+}
