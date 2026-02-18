@@ -24,10 +24,10 @@ spec:
         - containerPort: 8000
         resources:
           requests:
-            memory: "1Gi"
+            memory: "500Mi"
             cpu: "250m"
           limits:
-            memory: "2Gi"
+            memory: "750Mi"
             cpu: "500m"
       
       # [추가] "나는 Spot 인스턴스를 선호해!" (비용 절감)
