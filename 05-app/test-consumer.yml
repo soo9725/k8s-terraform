@@ -14,36 +14,47 @@ spec:
       labels:
         app: kafka-test-consumer
     spec:
-      containers:
-      - name: consumer
-        # Kafka CLI 도구가 포함된 공식 Strimzi 이미지 사용
-        image: quay.io/strimzi/kafka:0.43.0-kafka-3.8.0
-        command: ["/bin/sh", "-c"]
-        # 지정된 토픽에서 메시지를 실시간으로 읽어 로그로 출력하는 명령
-        args: 
-          - |
-            bin/kafka-console-consumer.sh \
-            --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092 \
-            --topic webapp-log-topic \
-            --group python-app-group
-        
-        resources:
-          # [핵심] Karpenter가 노드 부족을 감지하도록 보수적으로 설정
-          requests:
-            cpu: "500m"      # 사용자 요청: 최소 500m
-            memory: "2Gi"    # 사용자 요청: 최소 2Gi
-          limits:
-            cpu: "1000m"     # 사용자 요청: 최대 1000m
-            memory: "4Gi"    # 사용자 요청: 최대 4Gi
-
-      # [Karpenter 최적화] Spot 인스턴스 우선 활용 (비용 절감)
+      # [근본 해결 1] 하이브리드 노드 스케줄링
+      # 최초 1개는 기존 노드(general)에 박히고, 자리가 부족해지면 Karpenter 노드로 확장 유도
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
+          # 1순위: 기존 관리형 노드그룹(Managed Node Group) 선호
           - weight: 100
+            preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - general
+          # 2순위: Karpenter Spot 인스턴스 활용 (비용 절감)
+          - weight: 50
             preference:
               matchExpressions:
               - key: karpenter.sh/capacity-type
                 operator: In
                 values:
                 - spot
+
+      containers:
+      - name: consumer
+        image: quay.io/strimzi/kafka:0.43.0-kafka-3.8.0
+        command: ["/bin/sh", "-c"]
+        # [근본 해결 2] 프로그램 종료 후 재시작 루프 방지
+        # 메시지 처리가 끝나서 프로세스가 종료되려고 할 때 tail 명령어로 파드를 붙잡아둡니다.
+        # 이렇게 해야 K8s가 '에러'로 판단해 재시작하는 것을 막고, KEDA가 파드를 지울 때까지 대기합니다.
+        args: 
+          - |
+            bin/kafka-console-consumer.sh \
+            --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092 \
+            --topic webapp-log-topic \
+            --group python-app-group || tail -f /dev/null
+        
+        resources:
+          # [핵심] 1개당 500m를 점유하므로, 기존 노드 자원이 차면 Karpenter가 즉시 노드를 추가합니다.
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+          limits:
+            cpu: "1000m"
+            memory: "4Gi"
