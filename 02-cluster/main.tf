@@ -102,7 +102,20 @@ resource "aws_eks_node_group" "main" {
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name = aws_eks_cluster.main.name
   addon_name   = "vpc-cni"
-  depends_on   = [aws_eks_node_group.main]
+  # [권장] 최신 버전으로 관리 (선택사항이지만 안정성을 위해 추천)
+  # addon_version = "v1.16.0-eksbuild.1" 
+
+  # [핵심] 파드 개수 제한을 풀기 위한 설정 추가
+  configuration_values = jsonencode({
+    env = {
+      # IP Prefix Delegation 활성화 (노드당 파드 수 대폭 증가)
+      ENABLE_PREFIX_DELEGATION = "true"
+      # 미리 확보해둘 IP 블록 개수 (1개면 충분)
+      WARM_PREFIX_TARGET       = "1" 
+    }
+  })
+
+  depends_on = [aws_eks_node_group.main]
 }
 
 resource "aws_eks_addon" "coredns" {
