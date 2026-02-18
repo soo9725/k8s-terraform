@@ -98,7 +98,21 @@ cd ..
 
 # [FIX] ALB Controller가 Ingress를 인식할 수 있도록 잠시 대기
 echo "⏳ Waiting for ALB Controller to initialize (15s)..."
-sleep 15
+sleep 30
+
+# --------------------------------------
+# [NEW] 6. Layer 6: Monitoring (Prometheus, Grafana, Loki)
+# --------------------------------------
+# Ingress가 준비된 후 모니터링을 설치해야 Grafana 접속 주소(ALB)가 정상 생성됨
+echo "--------------------------------------"
+echo "📊 Applying Layer 6 (Monitoring Stack)..."
+if [ -d "06-monitoring" ]; then
+  cd 06-monitoring
+  terraform apply -auto-approve
+  cd ..
+else
+  echo "⚠️ 06-monitoring directory not found. Skipping Monitoring installation."
+fi
 
 # --------------------------------------
 # 5. ArgoCD Bootstrap (앱 배포 자동화)
@@ -136,18 +150,17 @@ echo ""
 echo "--------------------------------------"
 echo "✅ [Complete] 모든 인프라가 성공적으로 배포되었습니다!"
 
-# ... (앞부분 스크립트 생략) ...
-
 # --------------------------------------
 # 8. 배포 상태 검증 (Verification)
 # --------------------------------------
 echo "--------------------------------------"
-echo "🔍 [Verify] 리소스 상태 검증을 시작합니다 (최대 5분 대기)..."
+echo "🔍 [Verify] 리소스 상태 검증을 시작합니다 (최대 2분 대기)..."
 
 # [함수 1] 모든 Pod가 Running 또는 Completed 인지 확인
 check_pods() {
   # Running이나 Completed가 '아닌' 녀석들의 개수를 셉니다.
   # wc -l 은 개수를 세는 명령어입니다. grep -vE는 제외하는 명령어입니다.
+  # [수정] Pending 상태도 잠시 기다려주기 위해 제외할 수 있지만, 여기서는 엄격하게 체크
   local not_ready_count=$(kubectl get pods -A --no-headers 2>/dev/null | grep -vE "Running|Completed" | wc -l)
   echo "$not_ready_count"
 }
@@ -162,19 +175,23 @@ check_ingress() {
   fi
   
   # ADDRESS 컬럼(보통 AWS 도메인)이 있는 녀석만 셉니다.
+  # [수정] AWS ALB 주소(.amazonaws.com)가 할당되었는지 확인
   local ready_ingress=$(kubectl get ingress -A --no-headers 2>/dev/null | grep ".amazonaws.com" | wc -l)
   
   # 전체 개수 - 준비된 개수 = 남은 개수
   echo $((total_ingress - ready_ingress))
 }
 
-# 최대 30번 반복 (30 * 10초 = 300초 = 5분)
-MAX_RETRIES=12
+# 최대 30번 반복 (15 * 10초 = 150초 = 2분30초)
+MAX_RETRIES=15
 ALL_READY=false
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
   NOT_READY_PODS=$(check_pods)
-  NOT_READY_INGRESS=$(check_ingress)
+  NOT_READY_INGRESS_COUNT=$(check_ingress)
+  
+  # check_ingress 함수에서 계산된 값을 숫자로 변환 (혹시 모를 공백 제거)
+  NOT_READY_INGRESS=$(echo $NOT_READY_INGRESS_COUNT | tr -d ' ')
 
   # 둘 다 0이면 (모두 준비됨) 반복문 탈출
   if [ "$NOT_READY_PODS" -eq 0 ] && [ "$NOT_READY_INGRESS" -eq 0 ]; then
@@ -192,7 +209,7 @@ if [ "$ALL_READY" = true ]; then
   # 요청하신 성공 메시지
   echo "✅ 모든 pod, ingress 가 정상 동작 중입니다."
 else
-  # 5분이 지나도 안 떴을 때
+  # 2분이 지나도 안 떴을 때
   echo "❌ 일부 리소스가 아직 준비되지 않았습니다. 수동 확인이 필요합니다."
   echo "   (Tip: kubectl get pods -A / kubectl get ingress -A 명령어로 확인하세요)"
 fi
