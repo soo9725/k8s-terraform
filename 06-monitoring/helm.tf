@@ -139,7 +139,7 @@ resource "helm_release" "loki_stack" {
 }
 
 # -------------------------------------------------------------
-# 3. BotKube (Slack ChatOps) - [v1.10.0 문법에 맞게 대수선]
+# 3. BotKube (Slack ChatOps) - [v1.13.0 업그레이드 & 버그 수정]
 # -------------------------------------------------------------
 resource "helm_release" "botkube" {
   name             = "botkube"
@@ -147,10 +147,15 @@ resource "helm_release" "botkube" {
   chart            = "botkube"
   namespace        = "botkube"
   create_namespace = true
-  version          = "1.10.0"
+  version          = "1.14.0" # [핵심] K8s 1.30 호환성을 위해 버전 업그레이드
 
   values = [
     yamlencode({
+      # [설정] 클러스터 이름 지정 (not-configured 해결)
+      settings = {
+        clusterName = "terraform-eks"
+      }
+
       communications = {
         "default-group" = {
           socketSlack = {
@@ -195,13 +200,9 @@ resource "helm_release" "botkube" {
                   events = ["create", "delete", "error"]
                 },
                 {
-                  type = "v1/nodes"
+                  type = "v1/nodes" # [복구] 1.14에선 이제 뻗지 않습니다!
+                  namespaces = { include = [".*"] }
                   events = ["create", "delete"]
-                },
-                {
-                  type = "autoscaling/v2/horizontalpodautoscalers"
-                  namespaces = { include = ["05-app"] }
-                  events = ["update"]
                 }
               ]
             }

@@ -1,10 +1,10 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: webapp-log-topic # 웹앱이 사용할 토픽 이름
+  name: webapp-log-topic
   namespace: kafka
   labels:
-    strimzi.io/cluster: my-cluster # 03.5에서 만든 클러스터 이름과 일치 필수
+    strimzi.io/cluster: my-cluster
 spec:
-  partitions: 8 # 병렬 처리를 위해 3개로 설정
-  replicas: 1   # Ephemeral 모드이므로 1로 설정
+  partitions: 8
+  replicas: 1
