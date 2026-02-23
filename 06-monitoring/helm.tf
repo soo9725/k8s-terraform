@@ -1,3 +1,5 @@
+# 06-monitoring/helm.tf
+
 # -------------------------------------------------------------
 # 1. Prometheus & Grafana (kube-prometheus-stack)
 # -------------------------------------------------------------
@@ -14,21 +16,19 @@ resource "helm_release" "prometheus_stack" {
       # [리소스 최적화] 노드 메모리 8GB 고려
       prometheus = {
         prometheusSpec = {
-          retention = "1d" # 데이터 1일만 보관 (매일 삭제하므로)
+          retention = "1d" # 데이터 1일만 보관
           resources = {
             requests = { memory = "256Mi", cpu = "200m" }
             limits   = { memory = "1Gi", cpu = "500m" }
           }
-          # 모니터링은 중요하므로 On-Demand 노드 강제
           nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
         }
       }
 
-      # [Alertmanager] Slack Webhook 연동
+      # [Alertmanager] Slack Webhook 연동 (기존 설정 유지)
       alertmanager = {
         enabled = true
         alertmanagerSpec = {
-           # Alertmanager도 리소스 줄임
            resources = {
              requests = { memory = "64Mi", cpu = "100m" }
            }
@@ -53,8 +53,8 @@ resource "helm_release" "prometheus_stack" {
               name = "slack-notifications"
               slack_configs = [
                 {
-                  api_url = var.slack_webhook_url # 변수에서 주입
-                  channel = "#k8s"  # (채널명은 Webhook 설정 따름)
+                  api_url = var.slack_webhook_url
+                  channel = "#k8s" 
                   send_resolved = true
                   title = "{{ .GroupLabels.alertname }}"
                   text = "{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n{{ end }}"
@@ -65,10 +65,23 @@ resource "helm_release" "prometheus_stack" {
         }
       }
 
-      # [Grafana] Ingress(ALB) 설정 및 비밀번호 고정
+      # [Grafana] Loki 연결 및 Ingress 설정
       grafana = {
-        adminPassword = "test123" # 매일 초기화되므로 비밀번호 고정 (편의성)
+        adminPassword = "test123" 
         
+        # [핵심 추가] Grafana에게 Loki의 위치를 알려주는 설정 (자동 연결)
+        additionalDataSources = [
+          {
+            name = "Loki"
+            type = "loki"
+            url  = "http://loki.monitoring.svc.cluster.local:3100"
+            access = "proxy"
+            jsonData = {
+              maxLines = 1000
+            }
+          }
+        ]
+
         ingress = {
           enabled          = true
           ingressClassName = "alb"
@@ -104,7 +117,7 @@ resource "helm_release" "loki_stack" {
     yamlencode({
       loki = {
         persistence = {
-          enabled = false # 매일 삭제하므로 EBS 안 쓰고 임시 저장소 사용 (비용 절감)
+          enabled = false
         }
         resources = {
           requests = { memory = "128Mi", cpu = "100m" }
@@ -113,8 +126,12 @@ resource "helm_release" "loki_stack" {
         nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
       }
       promtail = {
-        enabled = true # 로그 수집기
-        #nodeSelector = { "karpenter.sh/capacity-type" = "on-demand" }
+        enabled = true
+        # Promtail Readiness Probe 이슈 해결 (Timeout 증가)
+        readinessProbe = {
+          initialDelaySeconds = 15
+          timeoutSeconds      = 5
+        }
       }
     })
   ]
@@ -122,7 +139,7 @@ resource "helm_release" "loki_stack" {
 }
 
 # -------------------------------------------------------------
-# 3. BotKube (Slack ChatOps)
+# 3. BotKube (Slack ChatOps) - [v1.10.0 문법에 맞게 대수선]
 # -------------------------------------------------------------
 resource "helm_release" "botkube" {
   name             = "botkube"
@@ -138,27 +155,39 @@ resource "helm_release" "botkube" {
         "default-group" = {
           socketSlack = {
             enabled = true
+            appToken = var.slack_app_token
+            botToken = var.slack_bot_token
             channels = {
               "default" = {
-                name = var.slack_channel_id # 변수에서 주입 (ID 필수)
+                name = var.slack_channel_id
                 bindings = {
                   sources = ["k8s-events"]
                   executors = ["kubectl-exec"]
                 }
               }
             }
-            appToken = var.slack_app_token # 변수에서 주입
-            botToken = var.slack_bot_token
           }
         }
       }
 
-      # 봇이 감지할 이벤트 설정 (파드 생성/삭제/에러 등)
       sources = {
         "k8s-events" = {
-          botkube = {
-            kubernetes = {
-              namespaces = { include = [".*"] } # 모든 네임스페이스 감시
+          "botkube/kubernetes" = {
+            enabled = true
+            context = {
+              rbac = {
+                group = {
+                  type = "Static"
+                  static = {
+                    values = ["botkube-plugins-default"]
+                  }
+                }
+              }
+            }
+            config = {
+              namespaces = {
+                include = [".*"]
+              }
               resources = [
                 {
                   type = "v1/pods"
@@ -167,7 +196,12 @@ resource "helm_release" "botkube" {
                 },
                 {
                   type = "v1/nodes"
-                  events = ["create", "delete"] # Karpenter 노드 증감 알림
+                  events = ["create", "delete"]
+                },
+                {
+                  type = "autoscaling/v2/horizontalpodautoscalers"
+                  namespaces = { include = ["05-app"] }
+                  events = ["update"]
                 }
               ]
             }
@@ -175,18 +209,46 @@ resource "helm_release" "botkube" {
         }
       }
 
-      # 챗옵스 실행 권한 (kubectl)
       executors = {
         "kubectl-exec" = {
-          botkube = {
-            kubectl = {
-              enabled = true
-              namespaces = { include = [".*"] }
-              commands = {
-                verbs = ["get", "describe", "logs", "top"] # 위험한 delete는 제외 (안전 제일)
-                resources = ["deployments", "pods", "nodes", "services", "ingresses"]
+          "botkube/kubectl" = {
+            enabled = true
+            context = {
+              rbac = {
+                group = {
+                  type = "Static"
+                  static = {
+                    values = ["botkube-plugins-default"]
+                  }
+                }
               }
             }
+            config = {
+              defaultNamespace = "default"
+              namespaces = {
+                include = [".*"]
+              }
+              commands = {
+                verbs = ["get", "describe", "logs", "top", "cluster-info", "diff"]
+                resources = ["deployments", "pods", "nodes", "services", "ingresses", "hpa", "scaledobjects"]
+              }
+            }
+          }
+        }
+      }
+
+      rbac = {
+        create = true
+        groups = {
+          "botkube-plugins-default" = {
+            create = true
+            rules = [
+              {
+                apiGroups = ["*"]
+                resources = ["*"]
+                verbs     = ["get", "watch", "list", "describe", "logs", "top"]
+              }
+            ]
           }
         }
       }
