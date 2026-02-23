@@ -25,9 +25,7 @@ resource "helm_release" "metrics_server" {
 # -------------------------------------------------------------
 resource "helm_release" "karpenter" {
   name             = "karpenter"
-  # [Best Practice] OCI 레지스트리 직접 참조
   chart            = "oci://public.ecr.aws/karpenter/karpenter"
-  # [핵심 수정] 0.32.1 -> v0.32.1 (v 접두사 필수)
   version          = "0.35.1"
   namespace        = "karpenter"
   create_namespace = true
@@ -42,7 +40,6 @@ resource "helm_release" "karpenter" {
       settings = {
         clusterName = var.cluster_name
       }
-      # v0.32.x 버전의 올바른 nodeSelector 설정 경로
       controller = {
         nodeSelector = {
           "karpenter.sh/capacity-type" = "on-demand"
@@ -65,7 +62,6 @@ resource "helm_release" "keda" {
 
   values = [
     yamlencode({
-      # KEDA의 모든 컴포넌트가 On-Demand 노드에만 뜨도록 설정
       nodeSelector = {
         "karpenter.sh/capacity-type" = "on-demand"
       }
@@ -90,14 +86,18 @@ metadata:
   name: default
 spec:
   amiFamily: AL2
-  # [수정] role 삭제하고 instanceProfile만 남김 (중복 정의 에러 해결)
   instanceProfile: "${aws_iam_instance_profile.karpenter_node.name}"
   subnetSelectorTerms:
     - tags:
         Name: "terraform-k8s-private-*"
+  
+  # [수정됨] 노드 간 통신을 위한 보안 그룹을 확실히 찾도록 OR 조건(리스트 항목 추가) 부여
   securityGroupSelectorTerms:
     - tags:
         "kubernetes.io/cluster/${var.cluster_name}": "owned"
+    - tags:
+        "karpenter.sh/discovery": "${var.cluster_name}"
+
   tags:
     Name: karpenter-node
     CreatedBy: karpenter
@@ -121,7 +121,7 @@ spec:
       requirements:
         - key: karpenter.k8s.aws/instance-category
           operator: In
-          values: ["c", "m", "t", "r"] # 메모리 요청이 크므로 r 타입 추가
+          values: ["c", "m", "t", "r"]
         - key: "karpenter.sh/capacity-type"
           operator: In
           values: ["spot", "on-demand"]
@@ -130,7 +130,7 @@ spec:
           values: ["amd64"]
         - key: "karpenter.k8s.aws/instance-generation"
           operator: Gt
-          values: ["2"] # 너무 구형 인스턴스 제외
+          values: ["2"]
       nodeClassRef:
         name: default
   limits:

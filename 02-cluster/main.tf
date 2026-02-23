@@ -57,6 +57,17 @@ resource "aws_launch_template" "node_group" {
 }
 
 # -----------------------------------------------------------
+# [추가됨] Karpenter 자동 탐색을 위한 보안 그룹 태그 부여
+# -----------------------------------------------------------
+# 노드들이 사용하는 VPC Default SG에 Karpenter Discovery 태그를 달아줍니다.
+# 이를 통해 Layer 2.5에서 Karpenter가 새 노드를 띄울 때 이 SG를 찾아냅니다.
+resource "aws_ec2_tag" "node_sg_karpenter_discovery" {
+  resource_id = data.terraform_remote_state.network.outputs.vpc_default_security_group_id
+  key         = "karpenter.sh/discovery"
+  value       = var.cluster_name
+}
+
+# -----------------------------------------------------------
 # 2. EKS Node Group (System Node) 생성 - 템플릿 적용
 # -----------------------------------------------------------
 resource "aws_eks_node_group" "main" {
@@ -223,4 +234,3 @@ resource "aws_eks_addon" "ebs_csi_driver" {
     aws_iam_role_policy_attachment.node_ebs_policy
   ]
 }
-
