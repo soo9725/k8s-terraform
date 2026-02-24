@@ -139,7 +139,7 @@ resource "helm_release" "loki_stack" {
 }
 
 # -------------------------------------------------------------
-# 3. BotKube (Slack ChatOps) - [v1.13.0 업그레이드 & 버그 수정]
+# 3. BotKube (Slack ChatOps) - [v1.14.0 안정 버전]
 # -------------------------------------------------------------
 resource "helm_release" "botkube" {
   name             = "botkube"
@@ -147,7 +147,7 @@ resource "helm_release" "botkube" {
   chart            = "botkube"
   namespace        = "botkube"
   create_namespace = true
-  version          = "1.14.0" # [핵심] K8s 1.30 호환성을 위해 버전 업그레이드
+  version          = "1.14.0" # [핵심] K8s 1.30 호환성 및 Panic 버그 수정 버전
 
   values = [
     yamlencode({
@@ -192,6 +192,11 @@ resource "helm_release" "botkube" {
             config = {
               namespaces = {
                 include = [".*"]
+              }
+              # [수정] 이벤트 필터링 레벨 추가 (Info 레벨까지 감시)
+              event = {
+                types = ["create", "update", "delete", "error"]
+                levels = ["info", "error", "warning"]
               }
               resources = [
                 {
