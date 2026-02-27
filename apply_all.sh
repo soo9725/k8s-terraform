@@ -10,7 +10,8 @@ echo "🚀 [Start] 인프라 생성 및 비용 절감 해제를 시작합니다.
 # --------------------------------------
 echo "--------------------------------------"
 echo "🔌 Applying Layer 1 (Turning ON NAT & Bastion)..."
-cd 01-network 
+cd 01-network
+terraform init
 terraform apply -var 'enable_nat_bastion=true' -auto-approve
 cd ..
 
@@ -20,7 +21,7 @@ cd ..
 echo "--------------------------------------"
 echo "🏗️ Applying Layer 2 (Cluster)..."
 cd 02-cluster 
-
+terraform init
 # [FIX] 실패했을 경우(! 연산자)에만 OIDC 복구 로직 실행
 if ! terraform apply -auto-approve; then
   echo "⚠️ Terraform apply failed. Checking for OIDC Provider issues..."
@@ -66,6 +67,7 @@ cd ..
 echo "--------------------------------------"
 echo "🔧 Applying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
 cd 02.5-addons
+terraform init
 terraform apply -auto-approve
 cd ..
 
@@ -74,7 +76,8 @@ cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "📦 Applying Layer 3 (Registry & Apps)..."
-cd 03-registry 
+cd 03-registry
+terraform init
 terraform apply -auto-approve
 cd ..
 
@@ -84,6 +87,7 @@ cd ..
 echo "--------------------------------------"
 echo "📨 Applying Layer 3.5 (Middleware: Kafka)..."
 cd 03.5-middleware
+terraform init
 terraform apply -auto-approve
 cd ..
 
@@ -93,6 +97,7 @@ cd ..
 echo "--------------------------------------"
 echo "🌐 Applying Layer 4 (Ingress)..."
 cd 04-ingress 
+terraform init
 terraform apply -auto-approve
 cd ..
 
@@ -108,6 +113,7 @@ echo "--------------------------------------"
 echo "📊 Applying Layer 6 (Monitoring Stack)..."
 if [ -d "06-monitoring" ]; then
   cd 06-monitoring
+  terraform init
   terraform apply -auto-approve
   cd ..
 else
