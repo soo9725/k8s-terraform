@@ -10,18 +10,21 @@ data "aws_caller_identity" "current" {}
 # -------------------------------------------------------------
 # Layer 1: Network & Storage (S3 버킷 이름 필요)
 data "terraform_remote_state" "network" {
-  backend = "local"
+  backend = "s3" 
   config = {
-    path = "../01-network/terraform.tfstate"
+    bucket = "terraform-k8s-tfstate" 
+    key    = "01-network/terraform.tfstate" 
+    region = "ap-northeast-1"
   }
 }
 
 # Layer 2: Cluster (EKS 접속 정보 및 OIDC 필요)
 data "terraform_remote_state" "cluster" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = "../02-cluster/terraform.tfstate"
+    bucket = "terraform-k8s-tfstate" # 1번에서 만든 버킷 이름
+    key    = "02-cluster/terraform.tfstate" # 참조하려는 대상 레이어의 key 경로
+    region = "ap-northeast-1"
   }
 }
-
 # [삭제됨] provider "helm" 설정은 provider.tf로 이동했습니다. (중복 방지)

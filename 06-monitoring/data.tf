@@ -1,8 +1,10 @@
 # Layer 2 (Cluster) 상태 참조
 data "terraform_remote_state" "cluster" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = "../02-cluster/terraform.tfstate"
+    bucket = "terraform-tfstate" # 1번에서 만든 버킷 이름
+    key    = "02-cluster/terraform.tfstate" # 참조하려는 대상 레이어의 key 경로
+    region = "ap-northeast-1"
   }
 }
 

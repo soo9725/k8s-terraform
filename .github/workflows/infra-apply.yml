@@ -1,0 +1,38 @@
+name: Scheduled Infra Apply
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # 매일 KST 14:00 (UTC 05:00) 실행
+  workflow_dispatch: # GitHub 웹에서 수동 실행 버튼 활성화
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Grant Execute Permission
+        run: chmod +x ./apply_all.sh
+
+      - name: Run Apply All Script
+        run: ./apply_all.sh
+
+      - name: Slack Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always() # 성공/실패 여부와 상관없이 무조건 알림 전송

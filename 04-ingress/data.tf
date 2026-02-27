@@ -5,11 +5,11 @@
 # ----------------------------------------------------------------
 # Layer 2에서 출력한 outputs(OIDC ARN, 클러스터 이름 등)를 읽어옵니다.
 data "terraform_remote_state" "cluster" {
-  backend = "local"
-
+  backend = "s3"
   config = {
-    # Layer 2의 상태 파일 경로 (상대 경로)
-    path = "../02-cluster/terraform.tfstate"
+    bucket = "terraform-tfstate" # 1번에서 만든 버킷 이름
+    key    = "02-cluster/terraform.tfstate" # 참조하려는 대상 레이어의 key 경로
+    region = "ap-northeast-1"
   }
 }
 

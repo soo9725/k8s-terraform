@@ -6,11 +6,11 @@
 # 여기서 vpc_id, subnet_ids 뿐만 아니라
 # [NEW] efs_id, s3_bucket_name 같은 스토리지 정보도 다 가져옵니다.
 data "terraform_remote_state" "network" {
-  backend = "local"
-
+  backend = "s3"
   config = {
-    # Layer 1의 State 파일 경로 (상대 경로 정확해야 함)
-    path = "${path.module}/../01-network/terraform.tfstate"
+    bucket = "terraform-k8s-tfstate" # 1번에서 만든 버킷 이름
+    key    = "01-network/terraform.tfstate" # 참조하려는 대상 레이어의 key 경로
+    region = "ap-northeast-1"
   }
 }
 
