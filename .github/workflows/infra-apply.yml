@@ -22,7 +22,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # [추가됨] Terraform 실행 전 SSH 폴더와 파일을 임시로 생성합니다.
+      # Terraform 실행 전 SSH 폴더와 파일을 임시로 생성합니다.
       - name: Inject SSH Keys
         run: |
           # 1. SSH 설정 폴더를 만듭니다.
@@ -33,7 +33,7 @@ jobs:
           # 공개키 파일의 권한을 '소유자는 읽기/쓰기, 나머지는 읽기'로 설정합니다.
           chmod 644 ~/.ssh/bastion_key.pub 
           
-          # 3. [NEW] Secrets에 저장된 개인키 값을 파일로 만듭니다.
+          # 3. Secrets에 저장된 개인키 값을 파일로 만듭니다.
           echo "${{ secrets.BASTION_PRIVATE_KEY }}" > ~/.ssh/bastion_key 
           # [핵심 보안] 개인키는 '나(소유자)'만 읽을 수 있도록 권한을 매우 엄격하게 600으로 설정해야 SSH 접속이 거부되지 않습니다.
           chmod 600 ~/.ssh/bastion_key
@@ -43,6 +43,12 @@ jobs:
 
       - name: Run Apply All Script
         run: ./apply_all.sh
+        # [수정됨] Terraform이 프롬프트에서 멈추지 않도록 TF_VAR_ 환경 변수로 값을 찔러 넣어줍니다.
+        env:
+          TF_VAR_slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          TF_VAR_slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          TF_VAR_slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TF_VAR_slack_app_token: ${{ secrets.SLACK_APP_TOKEN }}
 
       - name: Slack Notification
         uses: 8398a7/action-slack@v3
