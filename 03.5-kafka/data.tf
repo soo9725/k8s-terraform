@@ -4,7 +4,7 @@
 data "terraform_remote_state" "cluster" {
   backend = "s3"
   config = {
-    bucket = "terraform-tfstate" # 1번에서 만든 버킷 이름
+    bucket = "terraform-k8s-tfstate" # 1번에서 만든 버킷 이름
     key    = "02-cluster/terraform.tfstate" # 참조하려는 대상 레이어의 key 경로
     region = "ap-northeast-1"
   }
