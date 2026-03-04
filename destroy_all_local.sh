@@ -131,21 +131,21 @@ cd 04-ingress && terraform init && terraform destroy -auto-approve && cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "📨 Destroying Layer 3.5 (Kafka Middleware)..."
-cd 03.5-middleware && terraform init && terraform destroy -auto-approve && cd ..
+cd 03.5-kafka && terraform init && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
 # 5. Layer 3: Registry & Apps
 # --------------------------------------
 echo "--------------------------------------"
 echo "🗑️ Destroying Layer 3 (Registry)..."
-cd 03-registry && terraform init && terraform destroy -auto-approve && cd ..
+cd 03-harbor && terraform init && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
 # 6. Layer 2.5: Add-ons (Karpenter & KEDA)
 # --------------------------------------
 echo "--------------------------------------"
 echo "🔧 Destroying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
-cd 02.5-addons && terraform init && terraform destroy -auto-approve && cd ..
+cd 02.5-autoscaling && terraform init && terraform destroy -auto-approve && cd ..
 
 # --------------------------------------
 # 7. Layer 2: Cluster (EKS) & OIDC Cleanup
