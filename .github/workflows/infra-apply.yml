@@ -22,6 +22,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # [추가됨] Terraform 실행 전 SSH 폴더와 파일을 임시로 생성합니다.
+      - name: Inject SSH Public Key
+        run: |
+          mkdir -p ~/.ssh # .ssh 폴더 생성
+          echo "${{ secrets.BASTION_PUBLIC_KEY }}" > ~/.ssh/bastion_key.pub # Secrets의 값을 파일로 저장
+          chmod 644 ~/.ssh/bastion_key.pub # 파일 권한 설정
+
       - name: Grant Execute Permission
         run: chmod +x ./apply_all.sh
 
