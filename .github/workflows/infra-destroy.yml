@@ -23,11 +23,20 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       # [추가됨] Destroy 실행 전에도 동일하게 파일을 임시로 생성해 줍니다.
-      - name: Inject SSH Public Key
+      - name: Inject SSH Keys
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.BASTION_PUBLIC_KEY }}" > ~/.ssh/bastion_key.pub
-          chmod 644 ~/.ssh/bastion_key.pub
+          # 1. SSH 설정 폴더를 만듭니다.
+          mkdir -p ~/.ssh 
+          
+          # 2. Secrets에 저장된 공개키(.pub) 값을 파일로 만듭니다.
+          echo "${{ secrets.BASTION_PUBLIC_KEY }}" > ~/.ssh/bastion_key.pub 
+          # 공개키 파일의 권한을 '소유자는 읽기/쓰기, 나머지는 읽기'로 설정합니다.
+          chmod 644 ~/.ssh/bastion_key.pub 
+          
+          # 3. [NEW] Secrets에 저장된 개인키 값을 파일로 만듭니다.
+          echo "${{ secrets.BASTION_PRIVATE_KEY }}" > ~/.ssh/bastion_key 
+          # [핵심 보안] 개인키는 '나(소유자)'만 읽을 수 있도록 권한을 매우 엄격하게 600으로 설정해야 SSH 접속이 거부되지 않습니다.
+          chmod 600 ~/.ssh/bastion_key
 
       - name: Grant Execute Permission
         run: chmod +x ./destroy_all.sh
