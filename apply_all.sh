@@ -66,7 +66,7 @@ cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "🔧 Applying Layer 2.5 (Add-ons: Karpenter, KEDA)..."
-cd 02.5-addons
+cd 02.5-autoscaling
 terraform init
 terraform apply -auto-approve
 cd ..
@@ -76,7 +76,7 @@ cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "📦 Applying Layer 3 (Registry & Apps)..."
-cd 03-registry
+cd 03-harbor
 terraform init
 terraform apply -auto-approve
 cd ..
@@ -86,7 +86,7 @@ cd ..
 # --------------------------------------
 echo "--------------------------------------"
 echo "📨 Applying Layer 3.5 (Middleware: Kafka)..."
-cd 03.5-middleware
+cd 03.5-kafka
 terraform init
 terraform apply -auto-approve
 cd ..
